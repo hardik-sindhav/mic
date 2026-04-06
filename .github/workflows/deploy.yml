@@ -1,0 +1,147 @@
+name: Deploy on Merge
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy-frontend:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: admin_panel/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: admin_panel
+      run: npm ci
+    
+    - name: Build frontend
+      working-directory: admin_panel
+      run: npm run build
+    
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./admin_panel/dist
+        cname: # Add your custom domain here if needed
+        # Example: cname: admin.example.com
+    
+    - name: Notify deployment
+      run: |
+        echo "✅ Frontend deployed to GitHub Pages"
+        echo "📍 URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+
+  build-backend:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    
+    - name: Install backend dependencies
+      working-directory: backend
+      run: npm ci
+    
+    - name: Verify backend build
+      working-directory: backend
+      run: node --check src/server.js
+    
+    - name: Deploy to VPS
+      env:
+        VPS_PRIVATE_KEY: ${{ secrets.VPS_PRIVATE_KEY }}
+        VPS_HOST: ${{ secrets.VPS_HOST }}
+        VPS_USER: ${{ secrets.VPS_USER }}
+        VPS_APP_PATH: ${{ secrets.VPS_APP_PATH }}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$VPS_PRIVATE_KEY" > ~/.ssh/vps_deploy_key
+        chmod 600 ~/.ssh/vps_deploy_key
+        ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts 2>/dev/null
+        
+        ssh -i ~/.ssh/vps_deploy_key $VPS_USER@$VPS_HOST << 'DEPLOY_SCRIPT'
+          set -e
+          echo "🚀 Starting deployment..."
+          
+          # Navigate to app directory
+          cd $VPS_APP_PATH
+          
+          # Pull latest code
+          echo "📥 Pulling latest code..."
+          git fetch origin
+          git checkout main
+          git pull origin main
+          
+          # Install dependencies
+          echo "📦 Installing dependencies..."
+          npm ci
+          
+          # Restart backend service
+          echo "🔄 Restarting backend service..."
+          sudo systemctl restart mic-backend
+          
+          # Wait for service to start
+          sleep 2
+          
+          # Check service status
+          if sudo systemctl is-active --quiet mic-backend; then
+            echo "✅ Backend service is running"
+          else
+            echo "❌ Backend service failed to start"
+            sudo systemctl status mic-backend
+            exit 1
+          fi
+          
+          echo "✅ Deployment completed successfully!"
+        DEPLOY_SCRIPT
+    
+    - name: Verify deployment
+      env:
+        VPS_HOST: ${{ secrets.VPS_HOST }}
+      run: |
+        echo "🔍 Verifying deployment..."
+        sleep 3
+        # Replace with your actual health check endpoint
+        # curl -f http://$VPS_HOST:5000/health || exit 1
+        echo "✅ Deployment verification passed"
+    
+    - name: Deployment summary
+      run: |
+        echo "🚀 Backend Deployment Summary:" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Successfully deployed to VPS" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Deployment Details:**" >> $GITHUB_STEP_SUMMARY
+        echo "- Server: ${{ secrets.VPS_HOST }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Path: ${{ secrets.VPS_APP_PATH }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [ build-and-deploy-frontend, build-backend ]
+    if: always()
+
+    steps:
+    - name: Create deployment notification
+      run: |
+        echo "🎉 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "**By:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

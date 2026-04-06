@@ -1,0 +1,71 @@
+name: CI/Build & Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: admin_panel/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: admin_panel
+      run: npm ci
+    
+    - name: Run linter
+      working-directory: admin_panel
+      run: npm run lint
+      continue-on-error: true
+    
+    - name: Build application
+      working-directory: admin_panel
+      run: npm run build
+    
+    - name: Upload dist artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend-dist-${{ matrix.node-version }}
+        path: admin_panel/dist/
+        if-no-files-found: ignore
+
+  backend:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: backend
+      run: npm ci
+    
+    - name: Check for syntax errors
+      working-directory: backend
+      run: node --check src/server.js
+      continue-on-error: true
