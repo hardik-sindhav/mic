@@ -1,8 +1,5 @@
 import { ThemeToggle } from '../components/ui/ThemeToggle.jsx'
 
-/**
- * Futuristic auth shell: dot grid, split brand rail (desktop), centered form.
- */
 export function AuthLayout({ children, theme, onToggleTheme }) {
   return (
     <div className="flex min-h-dvh flex-col transition-colors duration-theme">
