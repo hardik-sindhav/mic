@@ -1,4 +1,4 @@
-```yaml
+
 name: Deploy on Merge
 
 on:
@@ -125,4 +125,4 @@ jobs:
           echo "Frontend: https://admin.mic.xfinai.cloud" >> $GITHUB_STEP_SUMMARY
           echo "Backend: https://api.mic.xfinai.cloud" >> $GITHUB_STEP_SUMMARY
           echo "Triggered by: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-```
+
