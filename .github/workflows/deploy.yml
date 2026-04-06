@@ -1,283 +1,129 @@
+```yaml
 name: Deploy on Merge
 
 on:
   push:
     branches: [ main ]
 
-permissions:
-  contents: write
-  pages: write
-
 jobs:
   build-and-deploy-frontend:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
 
     steps:
-    - uses: actions/checkout@v5
-      with:
-        fetch-depth: 0
-    
+    - name: Checkout
+      uses: actions/checkout@v5
+
     - name: Setup Node.js
       uses: actions/setup-node@v5
       with:
-        node-version: '20.x'
+        node-version: '20'
         cache: 'npm'
         cache-dependency-path: admin_panel/package-lock.json
-    
+
     - name: Install dependencies
       working-directory: admin_panel
       run: npm ci
-    
+
     - name: Build frontend
       working-directory: admin_panel
       env:
         VITE_API_URL: https://api.mic.xfinai.cloud
       run: npm run build
-    
-    - name: Deploy to GitHub Pages (Backup)
-      uses: peaceiris/actions-gh-pages@v4
-      if: always()
-      continue-on-error: true
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./admin_panel/dist
-        force_orphan: true
-        cname: admin.mic.xfinai.cloud
-    
-    - name: Setup SSH (Frontend)
+
+    - name: Setup SSH
       env:
         VPS_PRIVATE_KEY: ${{ secrets.VPS_PRIVATE_KEY }}
         VPS_HOST: ${{ secrets.VPS_HOST }}
       run: |
-        if [ -z "$VPS_HOST" ] || [ -z "$VPS_PRIVATE_KEY" ]; then
-          echo "⚠️  VPS secrets not configured. Skipping VPS deployment."
-          exit 0
-        fi
         mkdir -p ~/.ssh
-        printf "%s\n" "$VPS_PRIVATE_KEY" > ~/.ssh/id_ed25519
+        echo "$VPS_PRIVATE_KEY" > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
-        sed -i 's/\r$//' ~/.ssh/id_ed25519
-        ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
-        echo "✅ SSH key setup complete"
+        ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts
 
-    - name: Debug SSH Key (Frontend)
-      run: |
-        if [ -f ~/.ssh/id_ed25519 ]; then
-          echo "📋 SSH directory listing:"
-          ls -l ~/.ssh
-          echo ""
-          echo "📄 First 2 lines of private key:"
-          head -n 2 ~/.ssh/id_ed25519
-        else
-          echo "❌ SSH key file not found"
-        fi
-
-    - name: Deploy frontend to VPS
+    - name: Deploy frontend to VPS (rsync clean deploy)
       env:
         VPS_HOST: ${{ secrets.VPS_HOST }}
         VPS_USER: ${{ secrets.VPS_USER }}
         VPS_FRONTEND_PATH: ${{ secrets.VPS_FRONTEND_PATH }}
       run: |
-        if [ -z "$VPS_HOST" ] || [ ! -f ~/.ssh/id_ed25519 ]; then
-          echo "⏭️  Skipping frontend VPS deployment"
-          exit 0
-        fi
-        
-        # Verify dist directory exists
-        if [ ! -d "admin_panel/dist" ]; then
-          echo "❌ Frontend build directory not found"
-          exit 1
-        fi
-        
-        # Upload frontend build to VPS
-        echo "📤 Uploading frontend files to VPS..."
-        scp -i ~/.ssh/id_ed25519 -r admin_panel/dist/* $VPS_USER@$VPS_HOST:$VPS_FRONTEND_PATH/ || {
-          echo "⚠️  SCP upload failed. Continuing..."
-          exit 0
-        }
-        
-        # Verify upload
-        echo "✅ Frontend files deployed to VPS"
-        ssh -i ~/.ssh/id_ed25519 $VPS_USER@$VPS_HOST << EOF
-        echo "📁 Frontend location: $VPS_FRONTEND_PATH"
-        echo "📊 Files uploaded:"
-        ls -lh $VPS_FRONTEND_PATH | head -5
-        EOF
-    
-    - name: Notify deployment
-      run: |
-        echo "✅ Frontend deployed to GitHub Pages and VPS"
-        echo "📍 Admin Panel: https://admin.mic.xfinai.cloud"
-        echo "📍 Fallback (GitHub Pages): https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+        rsync -avz --delete -e "ssh -i ~/.ssh/id_ed25519" admin_panel/dist/ $VPS_USER@$VPS_HOST:$VPS_FRONTEND_PATH/
 
-  build-backend:
+    - name: Done frontend deploy
+      run: echo "✅ Frontend deployed to https://admin.mic.xfinai.cloud"
+
+
+  build-and-deploy-backend:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
 
     steps:
-    - uses: actions/checkout@v5
-    
+    - name: Checkout
+      uses: actions/checkout@v5
+
     - name: Setup Node.js
       uses: actions/setup-node@v5
       with:
-        node-version: '20.x'
+        node-version: '20'
         cache: 'npm'
         cache-dependency-path: backend/package-lock.json
-    
-    - name: Install backend dependencies (Debug)
+
+    - name: Install backend dependencies
       working-directory: backend
-      run: |
-        echo "📦 Installing dependencies..."
-        npm ci || exit 1
-        echo "✅ Dependencies installed"
-    
-    - name: Verify backend build
-      working-directory: backend
-      run: |
-        echo "🔍 Checking syntax..."
-        node --check src/server.js || exit 1
-        echo "✅ Backend syntax valid"
-    
-    - name: Setup SSH (Backend)
+      run: npm ci
+
+    - name: Setup SSH
       env:
         VPS_PRIVATE_KEY: ${{ secrets.VPS_PRIVATE_KEY }}
         VPS_HOST: ${{ secrets.VPS_HOST }}
       run: |
-        if [ -z "$VPS_HOST" ] || [ -z "$VPS_PRIVATE_KEY" ]; then
-          echo "⚠️  VPS secrets not configured. Skipping backend deployment."
-          exit 0
-        fi
         mkdir -p ~/.ssh
-        printf "%s\n" "$VPS_PRIVATE_KEY" > ~/.ssh/id_ed25519
+        echo "$VPS_PRIVATE_KEY" > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
-        sed -i 's/\r$//' ~/.ssh/id_ed25519
-        ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
-        echo "✅ SSH key setup complete"
+        ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts
 
-    - name: Debug SSH Key (Backend)
-      run: |
-        if [ -f ~/.ssh/id_ed25519 ]; then
-          echo "📋 SSH directory listing:"
-          ls -l ~/.ssh
-          echo ""
-          echo "📄 First 2 lines of private key:"
-          head -n 2 ~/.ssh/id_ed25519
-        else
-          echo "❌ SSH key file not found"
-        fi
-
-    - name: Deploy to VPS
+    - name: Deploy backend to VPS
       env:
         VPS_HOST: ${{ secrets.VPS_HOST }}
         VPS_USER: ${{ secrets.VPS_USER }}
         VPS_APP_PATH: ${{ secrets.VPS_APP_PATH }}
-      continue-on-error: true
       run: |
-        if [ -z "$VPS_HOST" ] || [ ! -f ~/.ssh/id_ed25519 ]; then
-          echo "⏭️  Skipping backend VPS deployment"
-          exit 0
-        fi
-        
-        # Test SSH connection first
-        if ! ssh -i ~/.ssh/id_ed25519 -o ConnectTimeout=10 $VPS_USER@$VPS_HOST "echo 'SSH connection successful'" 2>&1; then
-          echo "❌ SSH connection failed. Check your VPS secrets."
-          exit 1
-        fi
-        
-        ssh -i ~/.ssh/id_ed25519 $VPS_USER@$VPS_HOST << EOF
+        ssh -i ~/.ssh/id_ed25519 $VPS_USER@$VPS_HOST << 'EOF'
           set -e
-          echo "🚀 Starting backend deployment..."
-          
-          # Navigate to app directory
-          cd $VPS_APP_PATH
-          
-          # Pull latest code
-          echo "📥 Pulling latest code..."
-          git fetch origin
-          git checkout main
-          git pull origin main
-          
-          # Navigate to backend folder and install dependencies
-          cd backend
-          echo "📦 Installing backend dependencies..."
-          npm ci
-          
-          # Restart backend service
-          echo "🔄 Restarting backend service..."
-          sudo systemctl restart mic-backend
-          
-          # Wait for service to start
-          sleep 2
-          
-          # Check service status
-          if sudo systemctl is-active --quiet mic-backend; then
-            echo "✅ Backend service is running"
-          else
-            echo "❌ Backend service failed to start"
-            sudo systemctl status mic-backend
-            exit 1
-          fi
-          
-          echo "✅ Backend deployment completed successfully!"
-        EOF
-    
-    - name: Verify deployment
-      env:
-        VPS_HOST: ${{ secrets.VPS_HOST }}
-      run: |
-        if [ -z "$VPS_HOST" ]; then
-          echo "⏭️  Skipping verification - VPS not configured"
-          exit 0
-        fi
-        
-        echo "🔍 Verifying deployment..."
-        sleep 2
-        
-        # Optional: Uncomment to test health endpoint
-        # curl -f https://api.mic.xfinai.cloud/health || echo "Health check pending"
-        
-        echo "✅ Deployment verification complete"
-    
-    - name: Deployment summary
-      if: success()
-      run: |
-        echo "✅ MIC Deployment Summary:" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Frontend Deployment:**" >> $GITHUB_STEP_SUMMARY
-        echo "- Admin Panel: https://admin.mic.xfinai.cloud" >> $GITHUB_STEP_SUMMARY
-        echo "- Fallback: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Backend Deployment:**" >> $GITHUB_STEP_SUMMARY
-        if [ -z "${{ secrets.VPS_HOST }}" ]; then
-          echo "- Status: ⏳ Not configured yet" >> $GITHUB_STEP_SUMMARY
-          echo "- [Setup VPS Deployment](.github/CUSTOM-DOMAINS-SETUP.md)" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "- API: https://api.mic.xfinai.cloud" >> $GITHUB_STEP_SUMMARY
-          echo "- Status: ✅ Deployed to VPS" >> $GITHUB_STEP_SUMMARY
-        fi
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Deployment triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
 
-    - name: Deployment failed
-      if: failure()
+          echo "🚀 Backend Deploy Start"
+
+          cd $VPS_APP_PATH
+
+          git fetch origin
+          git reset --hard origin/main
+
+          cd backend
+          npm ci
+
+          echo "🔄 Restarting backend"
+          pm2 restart mic-backend || pm2 start src/server.js --name mic-backend
+
+          echo "✅ Backend Deploy Done"
+        EOF
+
+    - name: Health Check
       run: |
-        echo "❌ Deployment Failed!" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Check the logs above for details." >> $GITHUB_STEP_SUMMARY
-        exit 1
+        sleep 3
+        curl -f https://api.mic.xfinai.cloud || exit 1
+
+    - name: Done backend deploy
+      run: echo "✅ Backend deployed to https://api.mic.xfinai.cloud"
+
 
   notify:
     runs-on: ubuntu-latest
-    needs: [ build-and-deploy-frontend, build-backend ]
-    if: success()
+    needs: [build-and-deploy-frontend, build-and-deploy-backend]
 
     steps:
-    - name: Create deployment notification
+    - name: Deployment Summary
       run: |
-        echo "🎉 Deployment Complete!!!" >> $GITHUB_STEP_SUMMARY
+        echo "🎉 Deployment Complete" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-        echo "**By:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+        echo "Frontend: https://admin.mic.xfinai.cloud" >> $GITHUB_STEP_SUMMARY
+        echo "Backend: https://api.mic.xfinai.cloud" >> $GITHUB_STEP_SUMMARY
+        echo "Triggered by: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+```
