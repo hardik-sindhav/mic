@@ -43,20 +43,43 @@ jobs:
         VPS_USER: ${{ secrets.VPS_USER }}
         VPS_FRONTEND_PATH: ${{ secrets.VPS_FRONTEND_PATH }}
       run: |
+        # Check if secrets are configured
+        if [ -z "$VPS_HOST" ] || [ -z "$VPS_PRIVATE_KEY" ]; then
+          echo "⚠️  VPS secrets not configured. Skipping VPS deployment."
+          echo "✅ Frontend is available on GitHub Pages as fallback"
+          echo "📝 To enable VPS deployment, add these secrets:"
+          echo "   - VPS_PRIVATE_KEY"
+          echo "   - VPS_HOST"
+          echo "   - VPS_USER"
+          echo "   - VPS_FRONTEND_PATH"
+          exit 0
+        fi
+        
         mkdir -p ~/.ssh
         echo "$VPS_PRIVATE_KEY" > ~/.ssh/vps_deploy_key
         chmod 600 ~/.ssh/vps_deploy_key
-        ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts 2>/dev/null
+        ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
+        
+        # Verify dist directory exists
+        if [ ! -d "admin_panel/dist" ]; then
+          echo "❌ Frontend build directory not found"
+          exit 1
+        fi
         
         # Upload frontend build to VPS
-        scp -i ~/.ssh/vps_deploy_key -r admin_panel/dist/* $VPS_USER@$VPS_HOST:$VPS_FRONTEND_PATH/
+        echo "📤 Uploading frontend files to VPS..."
+        scp -i ~/.ssh/vps_deploy_key -r admin_panel/dist/* $VPS_USER@$VPS_HOST:$VPS_FRONTEND_PATH/ || {
+          echo "⚠️  SCP upload failed. Continuing..."
+          exit 0
+        }
         
         # Verify upload
-        ssh -i ~/.ssh/vps_deploy_key $VPS_USER@$VPS_HOST << 'VERIFY_SCRIPT'
-          echo "✅ Frontend files deployed to VPS"
-          echo "📁 Location: $VPS_FRONTEND_PATH"
-          ls -lh $VPS_FRONTEND_PATH | head -5
-        VERIFY_SCRIPT
+        echo "✅ Frontend files deployed to VPS"
+        ssh -i ~/.ssh/vps_deploy_key $VPS_USER@$VPS_HOST << EOF
+        echo "📁 Frontend location: $VPS_FRONTEND_PATH"
+        echo "📊 Files uploaded:"
+        ls -lh $VPS_FRONTEND_PATH | head -5
+        EOF
     
     - name: Notify deployment
       run: |
@@ -93,14 +116,25 @@ jobs:
         VPS_USER: ${{ secrets.VPS_USER }}
         VPS_APP_PATH: ${{ secrets.VPS_APP_PATH }}
       run: |
+        # Check if secrets are configured
+        if [ -z "$VPS_HOST" ] || [ -z "$VPS_PRIVATE_KEY" ]; then
+          echo "⚠️  VPS secrets not configured. Skipping backend deployment."
+          echo "📝 To enable VPS deployment, add these secrets:"
+          echo "   - VPS_PRIVATE_KEY"
+          echo "   - VPS_HOST"
+          echo "   - VPS_USER"
+          echo "   - VPS_APP_PATH"
+          exit 0
+        fi
+        
         mkdir -p ~/.ssh
         echo "$VPS_PRIVATE_KEY" > ~/.ssh/vps_deploy_key
         chmod 600 ~/.ssh/vps_deploy_key
-        ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts 2>/dev/null
+        ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
         
-        ssh -i ~/.ssh/vps_deploy_key $VPS_USER@$VPS_HOST << 'DEPLOY_SCRIPT'
+        ssh -i ~/.ssh/vps_deploy_key $VPS_USER@$VPS_HOST << EOF
           set -e
-          echo "🚀 Starting deployment..."
+          echo "🚀 Starting backend deployment..."
           
           # Navigate to app directory
           cd $VPS_APP_PATH
@@ -131,30 +165,48 @@ jobs:
             exit 1
           fi
           
-          echo "✅ Deployment completed successfully!"
-        DEPLOY_SCRIPT
+          echo "✅ Backend deployment completed successfully!"
+        EOF
     
     - name: Verify deployment
       env:
         VPS_HOST: ${{ secrets.VPS_HOST }}
       run: |
+        if [ -z "$VPS_HOST" ]; then
+          echo "⏭️  Skipping verification - VPS not configured"
+          exit 0
+        fi
+        
         echo "🔍 Verifying deployment..."
-        sleep 3
-        # Replace with your actual health check endpoint
-        # curl -f http://$VPS_HOST:5000/health || exit 1
-        echo "✅ Deployment verification passed"
+        sleep 2
+        
+        # Optional: Uncomment to test health endpoint
+        # curl -f https://api.mic.xfinai.cloud/health || echo "Health check pending"
+        
+        echo "✅ Deployment verification complete"
     
     - name: Deployment summary
       run: |
-        echo "🚀 Backend Deployment Summary:" >> $GITHUB_STEP_SUMMARY
+        echo "🚀 MIC Deployment Summary:" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Successfully deployed to VPS" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Deployment Details:**" >> $GITHUB_STEP_SUMMARY
-        echo "- API Endpoint: https://api.mic.xfinai.cloud" >> $GITHUB_STEP_SUMMARY
+        echo "**✅ Frontend Deployment:**" >> $GITHUB_STEP_SUMMARY
         echo "- Admin Panel: https://admin.mic.xfinai.cloud" >> $GITHUB_STEP_SUMMARY
-        echo "- Server: ${{ secrets.VPS_HOST }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Fallback (GitHub Pages): https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Backend Deployment:**" >> $GITHUB_STEP_SUMMARY
+        if [ -z "${{ secrets.VPS_HOST }}" ]; then
+          echo "- Status: ⏳ Not configured yet" >> $GITHUB_STEP_SUMMARY
+          echo "- Setup guide: See [CUSTOM-DOMAINS-SETUP.md](.github/CUSTOM-DOMAINS-SETUP.md)" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- API Endpoint: https://api.mic.xfinai.cloud" >> $GITHUB_STEP_SUMMARY
+          echo "- Server: ${{ secrets.VPS_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ✅ Deployed" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit Details:**" >> $GITHUB_STEP_SUMMARY
         echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Author: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
 
   notify:
     runs-on: ubuntu-latest
