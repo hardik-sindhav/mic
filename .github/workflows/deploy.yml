@@ -274,7 +274,7 @@ jobs:
     steps:
     - name: Create deployment notification
       run: |
-        echo "🎉 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "🎉 Deployment Complete!!!" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
         echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
