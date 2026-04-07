@@ -63,7 +63,7 @@ export function createApp(logger) {
     res.status(200).json({ status: 'ok', uptime: process.uptime() })
   })
 
-  // Handle preflight OPTIONS requests for all routes
+  // Handle preflight OPTIONS requests for all route
   app.options('*', cors())
 
   app.use('/api', apiLimiter, apiRouter)
