@@ -11,7 +11,7 @@ import { authRoutes } from './routes/auth.routes.js'
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
 })
-n
+
 export function createApp(logger) {
   const app = express()
 
