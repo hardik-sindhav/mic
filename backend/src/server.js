@@ -2,11 +2,16 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
+import pino from 'pino'
 
 /* Import your routes here */
-import authRoutes from './routes/auth.routes.js'
+import { authRoutes } from './routes/auth.routes.js'
 // import other routes if needed
 
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+})
+n
 export function createApp(logger) {
   const app = express()
 
@@ -99,3 +104,14 @@ export function createApp(logger) {
 
   return app
 }
+
+/*
+ START SERVER
+*/
+const PORT = process.env.PORT || 3000
+const app = createApp(logger)
+
+app.listen(PORT, () => {
+  logger.info(`Server running on port ${PORT}`)
+  logger.info(`Health check: http://localhost:${PORT}/api/health`)
+})
