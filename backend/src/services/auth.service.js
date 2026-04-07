@@ -52,12 +52,13 @@ export async function login({ email, password, ip, userAgent }) {
 
   if (!admin || !match) {
     if (admin) {
-      admin.failedLoginAttempts += 1
-      if (admin.failedLoginAttempts >= env.AUTH_MAX_FAILED_ATTEMPTS) {
-        admin.lockUntil = new Date(Date.now() + env.AUTH_LOCKOUT_MS)
-        admin.failedLoginAttempts = 0
+      const attempts = admin.failedLoginAttempts + 1
+      const update = { $set: { failedLoginAttempts: attempts } }
+      if (attempts >= env.AUTH_MAX_FAILED_ATTEMPTS) {
+        update.$set.lockUntil = new Date(Date.now() + env.AUTH_LOCKOUT_MS)
+        update.$set.failedLoginAttempts = 0
       }
-      await admin.save()
+      await Admin.updateOne({ _id: admin._id }, update)
     }
     const err = new Error('INVALID_CREDENTIALS')
     err.code = 'INVALID_CREDENTIALS'
@@ -72,7 +73,11 @@ export async function login({ email, password, ip, userAgent }) {
 
   admin.failedLoginAttempts = 0
   admin.lockUntil = null
-  await admin.save()
+  // Use updateOne to avoid validation errors on fields we didn't select or don't want to re-validate
+  await Admin.updateOne(
+    { _id: admin._id },
+    { $set: { failedLoginAttempts: 0, lockUntil: null } }
+  )
 
   const accessToken = signAccessToken(admin)
   const rawRefresh = crypto.randomBytes(48).toString('hex')
