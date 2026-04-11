@@ -35,14 +35,16 @@ export function Button({
       className={`${base} ${variants[variant]} ${className}`}
       {...props}
     >
-      {loading ? (
-        <Loader
-          size="sm"
-          decorative
-          className="!border-accent-foreground/30 !border-t-accent-foreground"
-        />
-      ) : null}
-      <span className={loading ? 'opacity-95' : ''}>{children}</span>
+      <span className="inline-flex items-center justify-center gap-2">
+        {loading ? (
+          <Loader
+            size="sm"
+            decorative
+            className="!border-accent-foreground/30 !border-t-accent-foreground"
+          />
+        ) : null}
+        {children}
+      </span>
     </button>
   )
 }

@@ -154,3 +154,22 @@ export async function updateAppSettings(accessToken, payload) {
   }
   return data
 }
+
+/** NOTIFICATIONS API **/
+
+export async function sendGlobalNotification(accessToken, payload) {
+  const res = await fetch(`${API_BASE_URL}/api/notifications/send-all`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to send notification')
+  }
+  return data
+}

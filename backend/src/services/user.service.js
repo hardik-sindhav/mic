@@ -47,9 +47,11 @@ export async function registerUser(payload) {
     email: payload.email ? payload.email.toLowerCase().trim() : undefined,
     guestId: payload.guestId ? payload.guestId.trim() : undefined,
     deviceId: payload.deviceId.trim(),
+    image: payload.image || '',
+    imageUrl: payload.imageUrl || '',
     referredBy: payload.referCode ? payload.referCode.trim() : undefined,
     country: payload.country ? payload.country.toUpperCase().trim() : undefined,
-    fcmToken: payload.fcmToken ? payload.fcmToken.trim() : undefined,
+    fcmToken: payload.fcmToken ? payload.fcmToken.trim() : '',
   })
   
   const accessToken = signUserToken(user)
@@ -61,8 +63,13 @@ export async function registerUser(payload) {
  */
 export function getLoginResponse(user) {
   const accessToken = signUserToken(user)
+  const userObj = user.toObject()
+  
+  // Add explicit status for the app to consume easily
+  userObj.status = user.isBlocked ? 'blocked' : 'active'
+  
   return {
-    user: user.toObject(),
+    user: userObj,
     accessToken,
     tokenType: 'Bearer',
   }

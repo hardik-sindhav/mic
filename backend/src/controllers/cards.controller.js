@@ -18,9 +18,17 @@ import { Card } from '../models/Card.js'
 
 // Helper to get file size in bytes
 function getFileSize(imagePath) {
-  if (!imagePath || !imagePath.startsWith('/uploads/')) return 0
-  const filename = imagePath.replace('/uploads/', '')
-  const fullPath = path.join(process.cwd(), 'uploads', filename)
+  if (!imagePath) return 0
+  let relativePath = ''
+  if (imagePath.startsWith('/uploads/cards/')) {
+    relativePath = path.join('cards', imagePath.replace('/uploads/cards/', ''))
+  } else if (imagePath.startsWith('/uploads/')) {
+    relativePath = imagePath.replace('/uploads/', '')
+  } else {
+    return 0
+  }
+  
+  const fullPath = path.join(process.cwd(), 'uploads', relativePath)
   try {
     if (fs.existsSync(fullPath)) {
       return fs.statSync(fullPath).size
@@ -127,7 +135,7 @@ export async function postCard(req, res, next) {
     // Create card data with image path
     const cardData = {
       ...parsed.data,
-      image: `/uploads/${req.file.filename}`,
+      image: `/uploads/cards/${req.file.filename}`,
     }
 
     const card = await createCard(cardData)
@@ -186,9 +194,9 @@ export async function patchCard(req, res, next) {
       // Get the old card to find the old image path
       const oldCard = await Card.findById(id)
       if (oldCard && oldCard.image) {
-        // Extract the filename from the old image path (e.g., "/uploads/filename.jpg" -> "filename.jpg")
-        const oldImagePath = oldCard.image.replace('/uploads/', '')
-        const fullOldPath = path.join(process.cwd(), 'uploads', oldImagePath)
+        // Extract the filename from the old image path (e.g., "/uploads/cards/filename.jpg" -> "filename.jpg")
+        const oldImagePath = oldCard.image.replace('/uploads/cards/', '').replace('/uploads/', '')
+        const fullOldPath = path.join(process.cwd(), 'uploads', oldCard.image.includes('/cards/') ? 'cards' : '', oldImagePath)
         
         // Delete the old image file if it exists
         try {
@@ -201,7 +209,7 @@ export async function patchCard(req, res, next) {
         }
       }
       
-      updateData.image = `/uploads/${req.file.filename}`
+      updateData.image = `/uploads/cards/${req.file.filename}`
     }
 
     const card = await updateCardById(id, updateData)

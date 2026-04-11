@@ -128,9 +128,10 @@ export async function permanentDeleteCardById(id) {
   if (!card) return false
 
   // Delete image file if it exists
-  if (card.image && card.image.startsWith('/uploads/')) {
-    const filename = card.image.replace('/uploads/', '')
-    const fullPath = path.join(process.cwd(), 'uploads', filename)
+  if (card.image && (card.image.startsWith('/uploads/cards/') || card.image.startsWith('/uploads/'))) {
+    const isNewPath = card.image.startsWith('/uploads/cards/')
+    const filename = isNewPath ? card.image.replace('/uploads/cards/', '') : card.image.replace('/uploads/', '')
+    const fullPath = path.join(process.cwd(), 'uploads', isNewPath ? 'cards' : '', filename)
     try {
       if (fs.existsSync(fullPath)) {
         fs.unlinkSync(fullPath)

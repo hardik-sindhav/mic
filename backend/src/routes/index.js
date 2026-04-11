@@ -4,9 +4,11 @@ import { appSettingsRoutes } from './appSettings.routes.js'
 import { authRoutes } from './auth.routes.js'
 import { cardsRoutes } from './cards.routes.js'
 import { customAdsRoutes } from './customAds.routes.js'
+import { notificationRoutes } from './notification.routes.js'
 import { shopRoutes } from './shop.routes.js'
 import { statsRoutes } from './stats.routes.js'
 import { userRoutes } from './user.routes.js'
+import { supportRoutes } from './support.routes.js'
 
 export const apiRouter = Router()
 
@@ -18,3 +20,5 @@ apiRouter.use('/shop', shopRoutes)
 apiRouter.use('/ads', adsRoutes)
 apiRouter.use('/custom-ads', customAdsRoutes)
 apiRouter.use('/app-settings', appSettingsRoutes)
+apiRouter.use('/notifications', notificationRoutes)
+apiRouter.use('/support', supportRoutes)

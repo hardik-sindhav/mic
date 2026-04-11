@@ -18,8 +18,16 @@ const userSchema = new mongoose.Schema(
     referredBy: { type: String, index: true },
     /** Country code (e.g. "US", "IN") */
     country: { type: String, trim: true, uppercase: true },
+    /** Profile picture (local path if uploaded) */
+    image: { type: String, trim: true, default: '' },
+    /** External profile picture URL (e.g. from Google) */
+    imageUrl: { type: String, trim: true, default: '' },
     /** Firebase Cloud Messaging token for push notifications */
-    fcmToken: { type: String, trim: true },
+    fcmToken: { type: String, trim: true, default: '' },
+    /** Whether the user is blocked from accessing the app */
+    isBlocked: { type: Boolean, default: false },
+    /** Reason for blocking the account */
+    blockReason: { type: String, trim: true, default: '' },
     
     // Stats and progression (keeping existing fields)
     wins: { type: Number, default: 0, min: 0 },
