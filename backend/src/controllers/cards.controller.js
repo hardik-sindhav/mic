@@ -10,8 +10,63 @@ import {
   softDeleteCardById,
   permanentDeleteCardById,
   updateCardById,
+  listCardsChunked,
+  countActiveCards,
+  activeCardFilter,
 } from '../services/cards.service.js'
 import { Card } from '../models/Card.js'
+
+// Helper to get file size in bytes
+function getFileSize(imagePath) {
+  if (!imagePath || !imagePath.startsWith('/uploads/')) return 0
+  const filename = imagePath.replace('/uploads/', '')
+  const fullPath = path.join(process.cwd(), 'uploads', filename)
+  try {
+    if (fs.existsSync(fullPath)) {
+      return fs.statSync(fullPath).size
+    }
+  } catch (err) {
+    console.warn('Could not get file size for:', fullPath, err.message)
+  }
+  return 0
+}
+
+export async function getCardChunksTotal(_req, res, next) {
+  try {
+    const total = await countActiveCards()
+    const allCards = await Card.find(activeCardFilter).select('image').lean()
+    const totalSizeBytes = allCards.reduce((acc, card) => acc + getFileSize(card.image), 0)
+
+    return res.status(200).json({ 
+      totalCards: total,
+      totalChunks: 10,
+      totalSizeBytes
+    })
+  } catch (e) {
+    next(e)
+  }
+}
+
+export async function getCardChunkByIndex(req, res, next) {
+  try {
+    const chunkIndex = parseInt(req.params.index, 10)
+    if (isNaN(chunkIndex) || chunkIndex < 0 || chunkIndex >= 10) {
+      return res.status(400).json({ error: 'Invalid chunk index (0-9 required)' })
+    }
+    const items = await listCardsChunked(chunkIndex, 10)
+    const chunkSizeLevelBytes = items.reduce((acc, card) => acc + getFileSize(card.image), 0)
+
+    return res.status(200).json({ 
+      chunkIndex,
+      totalChunks: 10,
+      count: items.length,
+      chunkSizeBytes: chunkSizeLevelBytes,
+      items 
+    })
+  } catch (e) {
+    next(e)
+  }
+}
 
 // Helper to parse string to boolean (for FormData)
 function parseBoolean(value) {

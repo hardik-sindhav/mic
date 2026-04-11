@@ -1,205 +1,261 @@
 import { useCallback, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
-import { fetchAdConfig, saveAdConfig } from '../api/ads.js'
+import { fetchAdConfig, updateAdConfig } from '../api/settings.js'
 import { SectionHeader } from '../components/layout/SectionHeader.jsx'
 import { Button } from '../components/ui/Button.jsx'
 import { Input } from '../components/ui/Input.jsx'
 import { Loader } from '../components/ui/Loader.jsx'
 import { useAuth } from '../hooks/useAuth.js'
+import { GripVertical, Save } from 'lucide-react'
+import admobLogo from '../assets/admob.png'
+import metaLogo from '../assets/meta.png'
+import unityLogo from '../assets/unity.png'
+import applovinLogo from '../assets/appLovin.png'
 
-const NETWORK_KEYS = ['meta', 'google', 'applovin', 'unity']
+const NETWORK_KEYS = ['google', 'meta', 'unity', 'applovin']
 
 const PLATFORM_META = {
-  meta: { title: 'Meta Ads', subtitle: 'Meta Audience Network — use your placement / ad unit IDs from Meta.' },
-  google: { title: 'Google Ads', subtitle: 'Google AdMob — banner, interstitial, and rewarded ad unit IDs.' },
-  applovin: { title: 'AppLovin', subtitle: 'AppLovin MAX — banner, interstitial, and rewarded placements.' },
-  unity: { title: 'Unity Ads', subtitle: 'Unity Ads — Game IDs / placement IDs as configured in the Unity dashboard.' },
-}
-
-function emptyNetwork() {
-  return {
-    enabled: false,
-    bannerAdUnitId: '',
-    interstitialAdUnitId: '',
-    rewardedAdUnitId: '',
-  }
-}
-
-function normalizeConfig(raw) {
-  const out = {}
-  for (const key of NETWORK_KEYS) {
-    out[key] = { ...emptyNetwork(), ...(raw?.[key] || {}) }
-  }
-  return out
-}
-
-function formatUpdatedAt(iso) {
-  if (!iso) return null
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return null
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  google: { title: 'Google AdMob', logo: admobLogo },
+  meta: { title: 'Meta Ads', logo: metaLogo },
+  unity: { title: 'Unity Ads', logo: unityLogo },
+  applovin: { title: 'AppLovin', logo: applovinLogo },
 }
 
 export function AdManagerPage() {
   const { accessToken } = useAuth()
-  const formPrefix = useId()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [updatedAt, setUpdatedAt] = useState(null)
-  const [config, setConfig] = useState(() => normalizeConfig(null))
+  const [config, setConfig] = useState(null)
+
+  const [draggedIndex, setDragIndex] = useState(null)
 
   const load = useCallback(async () => {
+    if (!accessToken) return
     setLoading(true)
     try {
-      const data = await fetchAdConfig()
-      setConfig(normalizeConfig(data))
-      setUpdatedAt(data?.updatedAt ?? null)
+      const data = await fetchAdConfig(accessToken)
+      setConfig(data)
     } catch (e) {
       toast.error(e.message || 'Could not load ad configuration.')
-      setConfig(normalizeConfig(null))
-      setUpdatedAt(null)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [accessToken])
 
   useEffect(() => {
     load()
   }, [load])
 
-  function setNetworkField(netKey, field, value) {
-    setConfig((prev) => ({
-      ...prev,
-      [netKey]: { ...prev[netKey], [field]: value },
-    }))
-  }
-
-  function toggleNetwork(netKey) {
-    setConfig((prev) => ({
-      ...prev,
-      [netKey]: { ...prev[netKey], enabled: !prev[netKey].enabled },
-    }))
-  }
-
   async function handleSave(e) {
-    e.preventDefault()
-    if (!accessToken) {
-      toast.error('Sign in again to save.')
-      return
-    }
+    if (e) e.preventDefault()
     setSaving(true)
     try {
-      const data = await saveAdConfig(accessToken, config)
-      setConfig(normalizeConfig(data))
-      setUpdatedAt(data?.updatedAt ?? null)
-      toast.success('Ad configuration saved.')
+      await updateAdConfig(accessToken, config)
+      toast.success('Ad configuration saved successfully.')
     } catch (err) {
-      toast.error(err.message || 'Could not save.')
+      toast.error(err.message || 'Could not save settings.')
     } finally {
       setSaving(false)
     }
   }
 
-  const updatedLabel = formatUpdatedAt(updatedAt)
+  const handleDragStart = (index) => {
+    setDragIndex(index)
+  }
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === index) return
+
+    const newOrder = [...config.loadOrder]
+    const item = newOrder.splice(draggedIndex, 1)[0]
+    newOrder.splice(index, 0, item)
+    
+    setConfig({ ...config, loadOrder: newOrder })
+    setDragIndex(index)
+  }
+
+  const handleDragEnd = () => {
+    setDragIndex(null)
+  }
+
+  const moveOrder = (index, direction) => {
+    const newOrder = [...config.loadOrder]
+    const nextIndex = index + direction
+    if (nextIndex < 0 || nextIndex >= newOrder.length) return
+    
+    const temp = newOrder[index]
+    newOrder[index] = newOrder[nextIndex]
+    newOrder[nextIndex] = temp
+    
+    setConfig({ ...config, loadOrder: newOrder })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader size="lg" />
+      </div>
+    )
+  }
 
   return (
-    <>
-      <SectionHeader
-        title="Ad Manager"
-        description="Turn each network on or off and paste ad unit IDs for banner, interstitial, and rewarded ads."
-      />
+    <div className="space-y-8 pb-20">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <SectionHeader
+          title="Ad Manager"
+          description="Configure ad networks, unit IDs, and the waterfall load order for your app."
+          className="mb-0"
+        />
+        <Button onClick={handleSave} loading={saving} disabled={saving} className="w-full sm:w-auto">
+          <Save className="h-4 w-4" />
+          Save Changes
+        </Button>
+      </div>
 
-      {loading ? (
-        <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-surface px-6 py-16 dark:bg-surface-elevated">
-          <Loader size="lg" label="Loading ad settings…" />
-        </div>
-      ) : (
-        <form onSubmit={handleSave} className="space-y-6">
-          {updatedLabel ? (
-            <p className="text-small text-foreground-muted">
-              Last saved: <span className="font-medium text-foreground">{updatedLabel}</span>
+      <div className="grid gap-8 lg:grid-cols-3">
+        {/* Waterfall Load Order */}
+        <section className="lg:col-span-1 space-y-4">
+          <div className="rounded-2xl border border-border bg-surface p-6 shadow-sm dark:border-border-strong dark:bg-surface-elevated">
+            <h3 className="font-display text-lg font-semibold text-foreground">Waterfall Order</h3>
+            <p className="mt-1 text-small text-foreground-muted mb-6">
+              Drag or use arrows to set which network loads first.
             </p>
-          ) : null}
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            {NETWORK_KEYS.map((key) => {
-              const meta = PLATFORM_META[key]
-              const n = config[key]
-              const switchId = `${formPrefix}-${key}-enabled`
-              return (
-                <section
-                  key={key}
-                  className="rounded-2xl border border-border bg-surface p-5 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:border-border-strong dark:bg-surface-elevated dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.35)] dark:ring-white/[0.06]"
-                >
-                  <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <h2 className="font-display text-lg font-semibold text-foreground">{meta.title}</h2>
-                      <p className="mt-1 text-small text-foreground-muted">{meta.subtitle}</p>
+            
+            <div className="space-y-3">
+              {config.loadOrder.map((key, index) => {
+                const meta = PLATFORM_META[key]
+                if (!meta) return null
+                const isDragging = draggedIndex === index
+                
+                return (
+                  <div 
+                    key={key} 
+                    draggable
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${
+                      isDragging 
+                        ? 'border-accent bg-accent/10 opacity-50 scale-95' 
+                        : 'border-border bg-surface-muted/20 dark:bg-surface-muted/5 hover:border-accent/30'
+                    }`}
+                  >
+                    <div className="flex shrink-0 items-center justify-center w-8 text-foreground-subtle">
+                      <GripVertical className="h-4 w-4" />
                     </div>
-                    <div className="flex shrink-0 items-center gap-3 rounded-xl border border-border bg-surface-muted/50 px-3 py-2 dark:bg-surface-muted/25">
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground-muted">
-                        Show ads
-                      </span>
-                      <button
+                    <div className="h-8 w-8 shrink-0 flex items-center justify-center rounded bg-white p-1 shadow-sm">
+                      <img src={meta.logo} alt="" className="max-h-full max-w-full object-contain" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-small font-bold text-foreground truncate">{meta.title}</p>
+                      <p className="text-[10px] text-foreground-subtle uppercase tracking-wider">Priority {index + 1}</p>
+                    </div>
+                    <div className="flex flex-col gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity lg:flex">
+                      <button 
                         type="button"
-                        id={switchId}
-                        role="switch"
-                        aria-checked={n.enabled}
-                        onClick={() => toggleNetwork(key)}
-                        className={`inline-flex h-8 w-14 shrink-0 items-center rounded-full border-2 px-1 py-0 leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-                          n.enabled
-                            ? 'border-accent/50 bg-accent shadow-md'
-                            : 'border-foreground/30 bg-surface-muted shadow-[inset_0_1px_3px_rgba(0,0,0,0.12)] dark:border-white/35 dark:bg-surface-muted/90 dark:shadow-[inset_0_1px_4px_rgba(0,0,0,0.45)]'
-                        }`}
+                        onClick={() => moveOrder(index, -1)}
+                        disabled={index === 0}
+                        className="p-1 hover:bg-surface rounded disabled:opacity-30"
+                        title="Move Up"
                       >
-                        <span
-                          aria-hidden
-                          className={`pointer-events-none block h-6 w-6 shrink-0 rounded-full border border-foreground/25 bg-surface shadow transition-transform duration-200 ease-out dark:border-white/30 dark:bg-surface-elevated ${
-                            n.enabled ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
+                        <GripVertical className="h-3 w-3 rotate-90" />
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => moveOrder(index, 1)}
+                        disabled={index === config.loadOrder.length - 1}
+                        className="p-1 hover:bg-surface rounded disabled:opacity-30"
+                        title="Move Down"
+                      >
+                        <GripVertical className="h-3 w-3 -rotate-90" />
                       </button>
                     </div>
                   </div>
+                )
+              })}
+            </div>
+            
+            <div className="mt-6 p-4 rounded-xl bg-accent/5 border border-accent/10">
+              <p className="text-[12px] text-accent font-medium leading-relaxed">
+                💡 Your app will try to load ads in this specific order. If the first network fails or has no fill, it moves to the next.
+              </p>
+            </div>
+          </div>
+        </section>
 
-                  <div className="mt-4 space-y-4">
-                    <Input
-                      id={`${formPrefix}-${key}-banner`}
-                      label="Banner ad unit ID"
-                      value={n.bannerAdUnitId}
-                      onChange={(e) => setNetworkField(key, 'bannerAdUnitId', e.target.value)}
-                      placeholder="e.g. ca-app-pub-… / placement ID"
-                      autoComplete="off"
-                    />
-                    <Input
-                      id={`${formPrefix}-${key}-interstitial`}
-                      label="Interstitial ad unit ID"
-                      value={n.interstitialAdUnitId}
-                      onChange={(e) => setNetworkField(key, 'interstitialAdUnitId', e.target.value)}
-                      placeholder="Interstitial placement"
-                      autoComplete="off"
-                    />
-                    <Input
-                      id={`${formPrefix}-${key}-rewarded`}
-                      label="Rewarded ad unit ID"
-                      value={n.rewardedAdUnitId}
-                      onChange={(e) => setNetworkField(key, 'rewardedAdUnitId', e.target.value)}
-                      placeholder="Rewarded placement"
-                      autoComplete="off"
-                    />
+        {/* Network Details */}
+        <section className="lg:col-span-2 space-y-6">
+          <div className="grid gap-6 sm:grid-cols-1">
+            {NETWORK_KEYS.map((key) => {
+              const meta = PLATFORM_META[key]
+              const net = config[key]
+              return (
+                <div key={key} className="rounded-2xl border border-border bg-surface overflow-hidden dark:border-border-strong dark:bg-surface-elevated">
+                  <div className="flex items-center justify-between bg-surface-muted/30 px-6 py-4 dark:bg-surface-muted/10 border-b border-border">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 shrink-0 flex items-center justify-center rounded-lg bg-white p-1.5 shadow-sm border border-border">
+                        <img src={meta.logo} alt="" className="max-h-full max-w-full object-contain" />
+                      </div>
+                      <h3 className="font-display font-bold text-foreground">{meta.title}</h3>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={net.enabled}
+                      onClick={() => setConfig({
+                        ...config,
+                        [key]: { ...net, enabled: !net.enabled }
+                      })}
+                      className={`inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                        net.enabled ? 'bg-accent' : 'bg-surface-muted border border-border'
+                      }`}
+                    >
+                      <span
+                        className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                          net.enabled ? 'translate-x-5' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </button>
                   </div>
-                </section>
+                  
+                  {net.enabled && (
+                    <div className="p-6 grid gap-4 sm:grid-cols-3">
+                      <Input
+                        label="Banner ID"
+                        value={net.bannerAdUnitId}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          [key]: { ...net, bannerAdUnitId: e.target.value }
+                        })}
+                        placeholder="Unit ID"
+                      />
+                      <Input
+                        label="Interstitial ID"
+                        value={net.interstitialAdUnitId}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          [key]: { ...net, interstitialAdUnitId: e.target.value }
+                        })}
+                        placeholder="Unit ID"
+                      />
+                      <Input
+                        label="Rewarded ID"
+                        value={net.rewardedAdUnitId}
+                        onChange={(e) => setConfig({
+                          ...config,
+                          [key]: { ...net, rewardedAdUnitId: e.target.value }
+                        })}
+                        placeholder="Unit ID"
+                      />
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>
-
-          <div className="flex justify-end">
-            <Button type="submit" className="w-full sm:w-auto" loading={saving} disabled={saving || !accessToken}>
-              Save configuration
-            </Button>
-          </div>
-        </form>
-      )}
-    </>
+        </section>
+      </div>
+    </div>
   )
 }

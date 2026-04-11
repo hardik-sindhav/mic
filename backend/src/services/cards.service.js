@@ -56,6 +56,27 @@ export async function listCards() {
   return Card.find(activeCardFilter).sort({ updatedAt: -1 }).lean()
 }
 
+export async function listCardsChunked(chunkIndex, totalChunks = 10) {
+  const total = await countActiveCards()
+  const chunkSize = Math.floor(total / totalChunks)
+  const extra = total % totalChunks
+
+  // Calculate start and end for this chunk
+  let start = 0
+  for (let i = 0; i < chunkIndex; i++) {
+    start += chunkSize + (i < extra ? 1 : 0)
+  }
+  const limit = chunkSize + (chunkIndex < extra ? 1 : 0)
+
+  if (limit <= 0) return []
+
+  return Card.find(activeCardFilter)
+    .sort({ updatedAt: -1 })
+    .skip(start)
+    .limit(limit)
+    .lean()
+}
+
 export async function listDeletedCards() {
   return Card.find({ deletedAt: { $ne: null } }).sort({ deletedAt: -1 }).lean()
 }
