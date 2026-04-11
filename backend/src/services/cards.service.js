@@ -128,16 +128,24 @@ export async function permanentDeleteCardById(id) {
   if (!card) return false
 
   // Delete image file if it exists
-  if (card.image && (card.image.startsWith('/uploads/cards/') || card.image.startsWith('/uploads/'))) {
-    const isNewPath = card.image.startsWith('/uploads/cards/')
-    const filename = isNewPath ? card.image.replace('/uploads/cards/', '') : card.image.replace('/uploads/', '')
-    const fullPath = path.join(process.cwd(), 'uploads', isNewPath ? 'cards' : '', filename)
-    try {
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath)
+  if (card.image && typeof card.image === 'string' && !card.image.startsWith('http')) {
+    const filename = card.image.replace('/uploads/cards/', '').replace('/uploads/', '')
+    
+    // Try both paths
+    const pathsToTry = [
+      path.join(process.cwd(), 'uploads', 'cards', filename),
+      path.join(process.cwd(), 'uploads', filename)
+    ]
+
+    for (const fullPath of pathsToTry) {
+      try {
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath)
+          break // Found and deleted
+        }
+      } catch (err) {
+        console.warn('Could not delete image file during permanent delete:', fullPath, err.message)
       }
-    } catch (err) {
-      console.warn('Could not delete image file during permanent delete:', fullPath, err.message)
     }
   }
 

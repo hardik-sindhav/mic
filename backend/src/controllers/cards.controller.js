@@ -18,20 +18,32 @@ import { Card } from '../models/Card.js'
 
 // Helper to get file size in bytes
 function getFileSize(imagePath) {
-  if (!imagePath) return 0
+  if (!imagePath || typeof imagePath !== 'string') return 0
+  
+  // Skip external URLs
+  if (imagePath.startsWith('http')) return 0
+
   let relativePath = ''
   if (imagePath.startsWith('/uploads/cards/')) {
-    relativePath = path.join('cards', imagePath.replace('/uploads/cards/', ''))
+    relativePath = imagePath.replace('/uploads/cards/', 'cards/')
   } else if (imagePath.startsWith('/uploads/')) {
     relativePath = imagePath.replace('/uploads/', '')
   } else {
-    return 0
+    // If it doesn't start with /uploads/, it might be a raw filename or something else
+    relativePath = imagePath
   }
   
-  const fullPath = path.join(process.cwd(), 'uploads', relativePath)
+  // Use absolute path from project root (assuming backend is current working directory)
+  const fullPath = path.join(process.cwd(), 'uploads', relativePath.startsWith('cards/') ? '' : 'cards', relativePath)
+  
   try {
     if (fs.existsSync(fullPath)) {
       return fs.statSync(fullPath).size
+    }
+    // Try fallback without forcing "cards" subfolder if not found
+    const fallbackPath = path.join(process.cwd(), 'uploads', relativePath)
+    if (fs.existsSync(fallbackPath)) {
+      return fs.statSync(fallbackPath).size
     }
   } catch (err) {
     console.warn('Could not get file size for:', fullPath, err.message)
