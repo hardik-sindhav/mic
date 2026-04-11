@@ -24,7 +24,6 @@ const networkSchema = new mongoose.Schema(
 
 const adConfigSchema = new mongoose.Schema(
   {
-    customAd: { type: customAdSchema, default: () => ({}) },
     google: { type: networkSchema, default: () => ({}) },
     meta: { type: networkSchema, default: () => ({}) },
     unity: { type: networkSchema, default: () => ({}) },

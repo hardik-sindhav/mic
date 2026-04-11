@@ -3,6 +3,7 @@ import { adsRoutes } from './ads.routes.js'
 import { appSettingsRoutes } from './appSettings.routes.js'
 import { authRoutes } from './auth.routes.js'
 import { cardsRoutes } from './cards.routes.js'
+import { customAdsRoutes } from './customAds.routes.js'
 import { shopRoutes } from './shop.routes.js'
 import { statsRoutes } from './stats.routes.js'
 import { userRoutes } from './user.routes.js'
@@ -15,4 +16,5 @@ apiRouter.use('/stats', statsRoutes)
 apiRouter.use('/cards', cardsRoutes)
 apiRouter.use('/shop', shopRoutes)
 apiRouter.use('/ads', adsRoutes)
+apiRouter.use('/custom-ads', customAdsRoutes)
 apiRouter.use('/app-settings', appSettingsRoutes)
