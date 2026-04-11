@@ -6,6 +6,18 @@ const appSettingsSchema = z.object({
   updateUrl: z.string().trim().max(1024).optional().default(''),
   updateNote: z.string().trim().max(2048).optional().default(''),
   forceUpdate: z.boolean().default(false),
+  welcomeReward: z.object({
+    totalCards: z.number().int().min(0).max(100).default(10),
+    bonusCards: z.number().int().min(0).max(100).default(0),
+    bonusCardIds: z.array(z.string()).optional().default([]),
+    starChances: z.object({
+      star1: z.number().min(0).max(100).default(40),
+      star2: z.number().min(0).max(100).default(30),
+      star3: z.number().min(0).max(100).default(15),
+      star4: z.number().min(0).max(100).default(10),
+      star5: z.number().min(0).max(100).default(5),
+    })
+  }).optional()
 })
 
 /** Public fetch for mobile apps to check for updates and global notes */

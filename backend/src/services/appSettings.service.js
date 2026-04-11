@@ -11,6 +11,17 @@ export async function getAppSettings() {
       updateUrl: '',
       updateNote: '',
       forceUpdate: false,
+      welcomeReward: {
+        totalCards: 10,
+        bonusCards: 0,
+        starChances: {
+          star1: 40,
+          star2: 30,
+          star3: 15,
+          star4: 10,
+          star5: 5,
+        }
+      }
     }
   }
   return doc
@@ -22,11 +33,13 @@ export async function getAppSettings() {
 export async function updateAppSettings(payload) {
   let doc = await AppSettings.findOne()
   if (doc) {
-    // Only pick version fields
     doc.latestVersion = payload.latestVersion
     doc.updateUrl = payload.updateUrl
     doc.updateNote = payload.updateNote
     doc.forceUpdate = payload.forceUpdate
+    if (payload.welcomeReward) {
+      doc.welcomeReward = payload.welcomeReward
+    }
     await doc.save()
   } else {
     doc = await AppSettings.create(payload)

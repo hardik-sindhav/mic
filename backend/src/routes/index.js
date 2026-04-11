@@ -9,11 +9,13 @@ import { shopRoutes } from './shop.routes.js'
 import { statsRoutes } from './stats.routes.js'
 import { userRoutes } from './user.routes.js'
 import { supportRoutes } from './support.routes.js'
+import { inventoryRoutes } from './inventory.routes.js'
 
 export const apiRouter = Router()
 
 apiRouter.use('/auth', authRoutes) // Admin login
 apiRouter.use('/users', userRoutes) // Mobile app user auth
+apiRouter.use('/inventory', inventoryRoutes) // Mobile app inventory
 apiRouter.use('/stats', statsRoutes)
 apiRouter.use('/cards', cardsRoutes)
 apiRouter.use('/shop', shopRoutes)

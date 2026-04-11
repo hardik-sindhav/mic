@@ -17,13 +17,13 @@ import { Input } from '../components/ui/Input.jsx'
 import { Loader } from '../components/ui/Loader.jsx'
 import { Textarea } from '../components/ui/Textarea.jsx'
 import { useAuth } from '../hooks/useAuth.js'
-import { GripVertical, Plus, Trash2, Save, ArrowUp, ArrowDown, Smartphone, Megaphone, Bell, ShieldAlert } from 'lucide-react'
+import { GripVertical, Plus, Trash2, Save, ArrowUp, ArrowDown, Smartphone, Megaphone, Bell, ShieldAlert, Gift, Star } from 'lucide-react'
 
 export function SettingsPage() {
   const { accessToken } = useAuth()
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [activeTab, setActiveTab] = useState('updates') // 'updates' | 'ads' | 'notifications'
+  const [activeTab, setActiveTab] = useState('updates') // 'updates' | 'ads' | 'notifications' | 'rewards'
 
   // App Settings State
   const [appSettings, setAppSettings] = useState({
@@ -31,11 +31,25 @@ export function SettingsPage() {
     updateUrl: '',
     updateNote: '',
     forceUpdate: false,
+    welcomeReward: {
+      totalCards: 10,
+      bonusCards: 0,
+      starChances: {
+        star1: 40,
+        star2: 30,
+        star3: 15,
+        star4: 10,
+        star5: 5,
+      }
+    }
   })
 
   // Custom Ads State
   const [customAds, setCustomAds] = useState([])
   const [draggedIndex, setDragIndex] = useState(null)
+
+  // Cards list for select
+  const [allCards, setAllCards] = useState([])
 
   // Notification State
   const [notif, setNotif] = useState({ title: '', body: '', imageUrl: '' })
@@ -45,12 +59,14 @@ export function SettingsPage() {
     if (!accessToken) return
     setLoading(true)
     try {
-      const [settings, ads] = await Promise.all([
+      const [settings, ads, cardsData] = await Promise.all([
         fetchAppSettings(accessToken),
         fetchCustomAdsAdmin(accessToken),
+        import('../api/cards.js').then(m => m.fetchCards(accessToken))
       ])
       if (settings) setAppSettings(settings)
       if (ads) setCustomAds(ads)
+      if (cardsData && cardsData.items) setAllCards(cardsData.items)
     } catch (err) {
       toast.error(err.message || 'Could not load settings.')
     } finally {
@@ -206,6 +222,17 @@ export function SettingsPage() {
           <Bell className="h-4 w-4" />
           Push Notifications
         </button>
+        <button
+          onClick={() => setActiveTab('rewards')}
+          className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-small font-semibold transition-all ${
+            activeTab === 'rewards'
+              ? 'bg-accent text-accent-foreground shadow-glow'
+              : 'text-foreground-muted hover:bg-surface-muted hover:text-foreground'
+          }`}
+        >
+          <Gift className="h-4 w-4" />
+          Welcome Rewards
+        </button>
       </div>
 
       <div className="mt-8">
@@ -326,6 +353,150 @@ export function SettingsPage() {
                   <Button type="submit" className="w-full sm:w-auto px-10" loading={sendingNotif}>
                     <Bell className="h-4 w-4" />
                     Send Global Notification
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          </div>
+        ) : activeTab === 'rewards' ? (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <Card accentTop>
+              <form onSubmit={handleUpdateSettings} className="space-y-8">
+                <div>
+                  <h3 className="font-display text-2xl font-bold">New User Welcome Package</h3>
+                  <p className="mt-1 text-body text-foreground-muted">
+                    Configure the cards a user receives when they first join the game.
+                  </p>
+                </div>
+
+                <div className="grid gap-8 lg:grid-cols-2">
+                  <div className="space-y-6">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Input 
+                        label="Base Cards" 
+                        type="number"
+                        value={appSettings.welcomeReward?.totalCards} 
+                        onChange={(e) => setAppSettings({ 
+                          ...appSettings, 
+                          welcomeReward: { ...appSettings.welcomeReward, totalCards: parseInt(e.target.value) || 0 } 
+                        })} 
+                        hint="Random cards from pool"
+                        required 
+                      />
+                      <Input 
+                        label="Bonus Cards" 
+                        type="number"
+                        value={appSettings.welcomeReward?.bonusCards} 
+                        onChange={(e) => setAppSettings({ 
+                          ...appSettings, 
+                          welcomeReward: { ...appSettings.welcomeReward, bonusCards: parseInt(e.target.value) || 0 } 
+                        })} 
+                        hint="Extra random cards"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-mono font-bold uppercase tracking-wider text-accent">Specific Bonus Cards (Everyone Gets These)</label>
+                      <div className="flex flex-wrap gap-2 p-4 rounded-2xl border border-border bg-surface-muted/10">
+                        {allCards.map(card => {
+                          const isSelected = appSettings.welcomeReward?.bonusCardIds?.includes(card._id)
+                          return (
+                            <button
+                              key={card._id}
+                              type="button"
+                              onClick={() => {
+                                const current = appSettings.welcomeReward?.bonusCardIds || []
+                                const next = isSelected 
+                                  ? current.filter(id => id !== card._id)
+                                  : [...current, card._id]
+                                setAppSettings({
+                                  ...appSettings,
+                                  welcomeReward: { ...appSettings.welcomeReward, bonusCardIds: next }
+                                })
+                              }}
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all ${
+                                isSelected 
+                                  ? 'bg-accent text-accent-foreground border-accent shadow-glow' 
+                                  : 'bg-surface border-border text-foreground-muted hover:border-accent/30'
+                              }`}
+                            >
+                              <div className="h-4 w-4 rounded-md overflow-hidden bg-surface-muted">
+                                <img src={card.image?.startsWith('/') ? `${API_BASE_URL}${card.image}` : card.image} alt="" className="h-full w-full object-cover" />
+                              </div>
+                              {card.name}
+                            </button>
+                          )
+                        })}
+                        {allCards.length === 0 && <p className="text-xs text-foreground-subtle italic">No cards available.</p>}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-surface-muted/20 p-6">
+                      <h4 className="text-small font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <Star className="h-4 w-4 text-accent" />
+                        Star Probabilities (%)
+                      </h4>
+                      <div className="space-y-4">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <div key={star} className="flex items-center gap-4">
+                            <span className="w-12 text-xs font-mono font-bold">{star} Star</span>
+                            <input 
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={appSettings.welcomeReward?.starChances?.[`star${star}`] || 0}
+                              onChange={(e) => setAppSettings({
+                                ...appSettings,
+                                welcomeReward: {
+                                  ...appSettings.welcomeReward,
+                                  starChances: {
+                                    ...appSettings.welcomeReward.starChances,
+                                    [`star${star}`]: parseInt(e.target.value) || 0
+                                  }
+                                }
+                              })}
+                              className="flex-1 accent-accent"
+                            />
+                            <span className="w-12 text-right text-xs font-bold">{appSettings.welcomeReward?.starChances?.[`star${star}`] || 0}%</span>
+                          </div>
+                        ))}
+                        <div className="pt-4 border-t border-border flex justify-between items-center">
+                          <span className="text-[10px] uppercase font-bold text-foreground-subtle">Total Probability</span>
+                          <span className={`text-xs font-bold ${
+                            Object.values(appSettings.welcomeReward?.starChances || {}).reduce((a, b) => a + b, 0) === 100 
+                              ? 'text-emerald-500' 
+                              : 'text-amber-500'
+                          }`}>
+                            {Object.values(appSettings.welcomeReward?.starChances || {}).reduce((a, b) => a + b, 0)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="rounded-3xl bg-accent/5 border border-accent/10 p-6">
+                      <div className="flex items-center gap-3 mb-3 text-accent">
+                        <Gift className="h-5 w-5" />
+                        <h4 className="font-bold">Welcome Flow</h4>
+                      </div>
+                      <p className="text-small text-foreground-muted leading-relaxed">
+                        When a new user registers or calls the claim API, the system will:
+                      </p>
+                      <ul className="mt-4 space-y-2 text-small text-foreground-subtle list-disc list-inside">
+                        <li>Calculate total cards: { (appSettings.welcomeReward?.totalCards || 0) + (appSettings.welcomeReward?.bonusCards || 0) }</li>
+                        <li>Randomly pick cards based on the star chances on the left.</li>
+                        <li>Add all picked cards to the user's inventory.</li>
+                        <li>Mark the user as "Claimed" to prevent multiple claims.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end border-t border-border pt-6">
+                  <Button type="submit" className="w-full sm:w-auto px-10" loading={submitting}>
+                    <Save className="h-4 w-4" />
+                    Save Reward Settings
                   </Button>
                 </div>
               </form>

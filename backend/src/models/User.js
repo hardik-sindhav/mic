@@ -28,6 +28,15 @@ const userSchema = new mongoose.Schema(
     isBlocked: { type: Boolean, default: false },
     /** Reason for blocking the account */
     blockReason: { type: String, trim: true, default: '' },
+    /** Whether the user has already claimed their welcome cards */
+    hasClaimedWelcome: { type: Boolean, default: false },
+    /** User's card collection */
+    inventory: [
+      {
+        cardId: { type: mongoose.Schema.Types.ObjectId, ref: 'Card', required: true },
+        count: { type: Number, default: 1, min: 1 },
+      }
+    ],
     
     // Stats and progression (keeping existing fields)
     wins: { type: Number, default: 0, min: 0 },
