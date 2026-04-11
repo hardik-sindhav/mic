@@ -23,6 +23,19 @@ const appSettingsSchema = new mongoose.Schema(
         star5: { type: Number, default: 5 },
       }
     },
+    /** Same shape as welcomeReward — used by POST /inventory/claim-reward-pack (only adds cards user does not own yet) */
+    rewardPack: {
+      totalCards: { type: Number, default: 5 },
+      bonusCards: { type: Number, default: 0 },
+      bonusCardIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Card' }],
+      starChances: {
+        star1: { type: Number, default: 40 },
+        star2: { type: Number, default: 30 },
+        star3: { type: Number, default: 15 },
+        star4: { type: Number, default: 10 },
+        star5: { type: Number, default: 5 },
+      }
+    },
   },
   { timestamps: true },
 )

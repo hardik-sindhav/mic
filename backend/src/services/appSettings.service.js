@@ -21,6 +21,17 @@ export async function getAppSettings() {
           star4: 10,
           star5: 5,
         }
+      },
+      rewardPack: {
+        totalCards: 5,
+        bonusCards: 0,
+        starChances: {
+          star1: 40,
+          star2: 30,
+          star3: 15,
+          star4: 10,
+          star5: 5,
+        }
       }
     }
   }
@@ -39,6 +50,9 @@ export async function updateAppSettings(payload) {
     doc.forceUpdate = payload.forceUpdate
     if (payload.welcomeReward) {
       doc.welcomeReward = payload.welcomeReward
+    }
+    if (payload.rewardPack) {
+      doc.rewardPack = payload.rewardPack
     }
     await doc.save()
   } else {

@@ -17,6 +17,18 @@ const appSettingsSchema = z.object({
       star4: z.number().min(0).max(100).default(10),
       star5: z.number().min(0).max(100).default(5),
     })
+  }).optional(),
+  rewardPack: z.object({
+    totalCards: z.number().int().min(0).max(100).default(5),
+    bonusCards: z.number().int().min(0).max(100).default(0),
+    bonusCardIds: z.array(z.string()).optional().default([]),
+    starChances: z.object({
+      star1: z.number().min(0).max(100).default(40),
+      star2: z.number().min(0).max(100).default(30),
+      star3: z.number().min(0).max(100).default(15),
+      star4: z.number().min(0).max(100).default(10),
+      star5: z.number().min(0).max(100).default(5),
+    })
   }).optional()
 })
 

@@ -1,4 +1,5 @@
 import * as inventoryService from '../services/inventory.service.js'
+import { User } from '../models/User.js'
 
 export async function postClaimWelcome(req, res, next) {
   try {
@@ -16,9 +17,23 @@ export async function postClaimWelcome(req, res, next) {
   }
 }
 
+/** Same admin-configured odds as welcome, but only adds cards not yet in inventory; each item has status new | already_owned */
+export async function postClaimRewardPack(req, res, next) {
+  try {
+    const { newCount, items } = await inventoryService.claimRewardPack(req.auth.sub)
+    return res.status(200).json({
+      success: true,
+      message: 'Reward pack processed',
+      newCount,
+      items,
+    })
+  } catch (e) {
+    next(e)
+  }
+}
+
 export async function getUserInventory(req, res, next) {
   try {
-    const { User } = await import('../models/User.js')
     const user = await User.findById(req.auth.sub)
       .populate({
         path: 'inventory.cardId',
